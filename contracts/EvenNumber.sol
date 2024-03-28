@@ -18,6 +18,7 @@ pragma solidity ^0.8.20;
 
 import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
 import {ImageID} from "./ImageID.sol"; // auto-generated contract after running `cargo build`.
+import {console2} from "forge-std/console2.sol";
 
 /// @title A starter application using RISC Zero.
 /// @notice This basic application holds a number, guaranteed to be even.
@@ -41,12 +42,16 @@ contract EvenNumber {
 
     /// @notice Set the even number stored on the contract. Requires a RISC Zero proof that the number is even.
     function set(uint256 x, bytes32 postStateDigest, bytes calldata seal) public {
+        console2.log("Got number", x);
+        console2.log("Got postStateDigest");
+        console2.log("Got seal");
         require(verifier.verify(seal, imageId, postStateDigest, sha256(abi.encode(x))));
         number = x;
     }
 
     /// @notice Returns the number stored.
     function get() public view returns (uint256) {
+        console2.log("Returning number", number);
         return number;
     }
 }

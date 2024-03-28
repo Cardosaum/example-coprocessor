@@ -92,32 +92,31 @@ impl BonsaiProver {
         log::info!("Created session: {}", session.uuid);
         let _receipt = loop {
             let res = session.status(&client)?;
-            if res.status == "RUNNING" {
-                log::info!(
-                    "Current status: {} - state: {} - continue polling...",
+            match res.status.as_str() {
+                "RUNNING" => {
+                    log::info!(
+                        "Current status: {} - state: {} - continue polling...",
+                        res.status,
+                        res.state.unwrap_or_default()
+                    );
+                    std::thread::sleep(Duration::from_secs(15));
+                    continue;
+                }
+                "SUCCEEDED" => {
+                    // Download the receipt, containing the output.
+                    let receipt_url = res
+                        .receipt_url
+                        .context("API error, missing receipt on completed session")?;
+                    let receipt_buf = client.download(&receipt_url)?;
+                    let receipt: Receipt = bincode::deserialize(&receipt_buf)?;
+                    break receipt;
+                }
+                _ => panic!(
+                    "Workflow exited: {} - | err: {}",
                     res.status,
-                    res.state.unwrap_or_default()
-                );
-                std::thread::sleep(Duration::from_secs(15));
-                continue;
+                    res.error_msg.unwrap_or_default()
+                ),
             }
-            if res.status == "SUCCEEDED" {
-                // Download the receipt, containing the output.
-                let receipt_url = res
-                    .receipt_url
-                    .context("API error, missing receipt on completed session")?;
-
-                let receipt_buf = client.download(&receipt_url)?;
-                let receipt: Receipt = bincode::deserialize(&receipt_buf)?;
-
-                break receipt;
-            }
-
-            panic!(
-                "Workflow exited: {} - | err: {}",
-                res.status,
-                res.error_msg.unwrap_or_default()
-            );
         };
 
         // Fetch the snark.

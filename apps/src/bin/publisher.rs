@@ -16,7 +16,9 @@
 // to the Bonsai proving service and publish the received proofs directly
 // to your deployed app contract.
 
-use alloy_primitives::U256;
+use std::{io::Write, path::Path};
+
+use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolInterface, SolValue};
 use anyhow::{Context, Result};
 use apps::{BonsaiProver, TxSender};
@@ -71,8 +73,19 @@ fn main() -> Result<()> {
     // code expects.
     let input = args.input.abi_encode();
 
-    // Send an off-chain proof request to the Bonsai proving service.
-    let (journal, post_state_digest, seal) = BonsaiProver::prove(IS_EVEN_ELF, &input)?;
+    // If we have a saved proof, we can skip the proof generation step.
+    let (journal, post_state_digest, seal): (Vec<u8>, FixedBytes<32>, Vec<u8>) =
+        if Path::new("prove_result").exists() {
+            bincode::deserialize(&std::fs::read("prove_result")?)?
+        } else {
+            // Send an off-chain proof request to the Bonsai proving service.
+            let (journal, post_state_digest, seal) = BonsaiProver::prove(IS_EVEN_ELF, &input)?;
+
+            let mut file = std::fs::File::create("prove_result")?;
+            let encoded = bincode::serialize(&(&journal, &post_state_digest, &seal))?;
+            file.write_all(&encoded)?;
+            (journal, post_state_digest, seal)
+        };
 
     // Decode the journal. Must match what was written in the guest with
     // `env::commit_slice`.
